@@ -5,12 +5,12 @@ from yacs.config import CfgNode as CN
 _C = CN()
 
 _C.LOG_DIR = 'runs/'
-_C.GPUS = (0,1)     
+_C.GPUS = (0,)
 _C.WORKERS = 8
-_C.PIN_MEMORY = False
-_C.PRINT_FREQ = 20
-_C.AUTO_RESUME =False       # Resume from the last training interrupt
-_C.NEED_AUTOANCHOR = False      # Re-select the prior anchor(k-means)    When training from scratch (epoch=0), set it to be ture!
+_C.PIN_MEMORY = True
+_C.PRINT_FREQ = 50
+_C.AUTO_RESUME = False       # Resume from the last training interrupt
+_C.NEED_AUTOANCHOR = True      # Re-select the prior anchor(k-means)    When training from scratch (epoch=0), set it to be true!
 _C.DEBUG = False
 _C.num_seg_class = 2
 
@@ -71,7 +71,7 @@ _C.DATASET.COLOR_RGB = False
 _C.DATASET.HSV_H = 0.015  # image HSV-Hue augmentation (fraction)
 _C.DATASET.HSV_S = 0.7  # image HSV-Saturation augmentation (fraction)
 _C.DATASET.HSV_V = 0.4  # image HSV-Value augmentation (fraction)
-# TODO: more augmet params to add
+# TODO: more augment params to add
 
 
 # train
@@ -83,17 +83,18 @@ _C.TRAIN.WARMUP_BIASE_LR = 0.1
 _C.TRAIN.WARMUP_MOMENTUM = 0.8
 
 _C.TRAIN.OPTIMIZER = 'adam'
-_C.TRAIN.MOMENTUM = 0.937
+_C.TRAIN.MOMENTUM = 0.937   # momentum for SGD or beta1 for Adam; beta2 for Adam is hardcoded to 0.999
 _C.TRAIN.WD = 0.0005
 _C.TRAIN.NESTEROV = True
-_C.TRAIN.GAMMA1 = 0.99
-_C.TRAIN.GAMMA2 = 0.0
+# not being used in the code
+# _C.TRAIN.GAMMA1 = 0.99
+# _C.TRAIN.GAMMA2 = 0.0
 
 _C.TRAIN.BEGIN_EPOCH = 0
 _C.TRAIN.END_EPOCH = 240
 
 _C.TRAIN.VAL_FREQ = 1
-_C.TRAIN.BATCH_SIZE_PER_GPU = 24
+_C.TRAIN.BATCH_SIZE_PER_GPU = 96
 _C.TRAIN.SHUFFLE = True
 
 _C.TRAIN.IOU_THRESHOLD = 0.2
@@ -118,12 +119,12 @@ _C.TRAIN.PLOT = True                #
 
 # testing
 _C.TEST = CN(new_allowed=True)
-_C.TEST.BATCH_SIZE_PER_GPU = 24
+_C.TEST.BATCH_SIZE_PER_GPU = 96
 _C.TEST.MODEL_FILE = ''
 _C.TEST.SAVE_JSON = False
 _C.TEST.SAVE_TXT = False
 _C.TEST.PLOTS = True
-_C.TEST.NMS_CONF_THRESHOLD  = 0.001
+_C.TEST.NMS_CONF_THRESHOLD  = 0.4
 _C.TEST.NMS_IOU_THRESHOLD  = 0.6
 
 
