@@ -1,16 +1,15 @@
 import time
-from lib.core.evaluate import ConfusionMatrix,SegmentationMetric
-from lib.core.general import non_max_suppression,check_img_size,scale_coords,xyxy2xywh,xywh2xyxy,box_iou,coco80_to_coco91_class,plot_images,ap_per_class,output_to_target
+from lib.core.evaluate import ConfusionMatrix, SegmentationMetric
+from lib.core.general import non_max_suppression, check_img_size, scale_coords, xyxy2xywh, xywh2xyxy, box_iou, coco80_to_coco91_class, plot_images, ap_per_class, output_to_target
 from lib.utils.utils import time_synchronized
-from lib.utils import plot_img_and_mask,plot_one_box,show_seg_result
+from lib.utils import plot_img_and_mask, plot_one_box, show_seg_result
 import torch
-from threading import Thread
+# from threading import Thread
 import numpy as np
 from PIL import Image
-from torchvision import transforms
 from pathlib import Path
 import json
-import random
+# import random
 import cv2
 import os
 import math
@@ -19,7 +18,7 @@ from tqdm import tqdm
 import wandb
 
 
-def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_batch, num_warmup,
+def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, total_batches, num_warmup,
           writer_dict, logger, device, rank=-1):
     """
     train for one epoch
@@ -49,11 +48,12 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
     # switch to train mode
     model.train()
     start = time.time()
-    for i, (input, target, paths, shapes) in enumerate(train_loader):
-        intermediate = time.time()
-        #print('tims:{}'.format(intermediate-start))
-        num_iter = i + num_batch * (epoch - 1)
+    for batch_ind, (input, target, paths, shapes) in enumerate(train_loader):
+        # intermediate = time.time()
+        # print('tims:{}'.format(intermediate-start))
+        num_iter = batch_ind + total_batches * (epoch - 1)
 
+        # warm up iterations
         if num_iter < num_warmup:
             # warm up
             lf = lambda x: ((1 + math.cos(x * math.pi / cfg.TRAIN.END_EPOCH)) / 2) * \
@@ -67,12 +67,14 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
                     x['momentum'] = np.interp(num_iter, xi, [cfg.TRAIN.WARMUP_MOMENTUM, cfg.TRAIN.MOMENTUM])
 
         data_time.update(time.time() - start)
+        
         if not cfg.DEBUG:
             input = input.to(device, non_blocking=True)
             assign_target = []
             for tgt in target:
                 assign_target.append(tgt.to(device))
             target = assign_target
+
         with amp.autocast(enabled=device.type != 'cpu'):
             outputs = model(input)
             total_loss, head_losses = criterion(outputs, target, shapes,model)
@@ -90,9 +92,10 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
 
         # compute gradient and do update step
         optimizer.zero_grad()
-        scaler.scale(total_loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        # https://pytorch.org/docs/stable/amp.html#gradient-scaling
+        scaler.scale(total_loss).backward() # scale loss and compute scaled gradients
+        scaler.step(optimizer)              # unscale and call optimizer.step()
+        scaler.update()                     # update scaling factor
 
         if rank in [-1, 0]:
             # measure accuracy and record loss
@@ -104,19 +107,19 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
 
             # measure elapsed time
             batch_time.update(time.time() - start)
-            end = time.time()
-            if i % cfg.PRINT_FREQ == 0:
+            # end = time.time()
+            if batch_ind % cfg.PRINT_FREQ == 0:
                 msg = 'Epoch: [{0}][{1}/{2}]\t' \
                       'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
                       'Speed {speed:.1f} samples/s\t' \
                       'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
                       'Loss {loss.val:.5f} ({loss.avg:.5f})\t' \
                       'LR: {lr:.6f}'.format(
-                          epoch, i, len(train_loader), batch_time=batch_time,
+                          epoch, batch_ind, total_batches, batch_time=batch_time,
                           speed=input.size(0)/batch_time.val,
                           data_time=data_time, loss=losses, lr=optimizer.param_groups[0]['lr'])
                 logger.info(msg)
-
+                
                 wandb.log({"avg_train_loss": losses.val})
 
                 writer = writer_dict['writer']
@@ -129,7 +132,7 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
 def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir,
              tb_log_dir, writer_dict=None, logger=None, device='cpu', rank=-1):
     """
-    validata
+    validate
 
     Inputs:
     - config: configurations 

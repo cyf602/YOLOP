@@ -32,19 +32,26 @@ class AutoDriveDataset(Dataset):
         self.transform = transform
         self.inputsize = inputsize
         self.Tensor = transforms.ToTensor()
+
+        # get directories for data
         img_root = Path(cfg.DATASET.DATAROOT)
         label_root = Path(cfg.DATASET.LABELROOT)
         mask_root = Path(cfg.DATASET.MASKROOT)
         lane_root = Path(cfg.DATASET.LANEROOT)
+        # set the final directory as 'train' or 'val' (or 'test')
         if is_train:
             indicator = cfg.DATASET.TRAIN_SET
         else:
             indicator = cfg.DATASET.TEST_SET
+
+        # create complete paths
         self.img_root = img_root / indicator
         self.label_root = label_root / indicator
         self.mask_root = mask_root / indicator
         self.lane_root = lane_root / indicator
-        # self.label_list = self.label_root.iterdir()
+        
+        # for iterating over input samples
+        # image, ll-mask, and detection sample paths can be derived by replacing the extension and parent dir
         self.mask_list = self.mask_root.iterdir()
 
         self.db = []
@@ -53,7 +60,8 @@ class AutoDriveDataset(Dataset):
 
         self.scale_factor = cfg.DATASET.SCALE_FACTOR
         self.rotation_factor = cfg.DATASET.ROT_FACTOR
-        self.flip = cfg.DATASET.FLIP
+        self.lr_flip = cfg.DATASET.LR_FLIP
+        self.ud_flip = cfg.DATASET.UD_FLIP
         self.color_rgb = cfg.DATASET.COLOR_RGB
 
         # self.target_type = cfg.MODEL.TARGET_TYPE
@@ -112,6 +120,7 @@ class AutoDriveDataset(Dataset):
         if isinstance(resized_shape, list):
             resized_shape = max(resized_shape)
         h0, w0 = img.shape[:2]  # orig hw
+        # divide the max of requested dimensions by the max of original dimensions to get a scaling factor
         r = resized_shape / max(h0, w0)  # resize image to img_size
         if r != 1:  # always resize down, only resize up if training with augmentation
             interp = cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR
@@ -120,6 +129,7 @@ class AutoDriveDataset(Dataset):
             lane_label = cv2.resize(lane_label, (int(w0 * r), int(h0 * r)), interpolation=interp)
         h, w = img.shape[:2]
         
+        # TODO - SKIPPED for now
         (img, seg_label, lane_label), ratio, pad = letterbox((img, seg_label, lane_label), resized_shape, auto=True, scaleup=self.is_train)
         shapes = (h0, w0), ((h / h0, w / w0), pad)  # for COCO mAP rescaling
         # ratio = (w / w0, h / h0)
@@ -160,8 +170,7 @@ class AutoDriveDataset(Dataset):
 
             # if self.is_train:
             # random left-right flip
-            lr_flip = True
-            if lr_flip and random.random() < 0.5:
+            if self.lr_flip and random.random() < 0.5:
                 img = np.fliplr(img)
                 seg_label = np.fliplr(seg_label)
                 lane_label = np.fliplr(lane_label)
@@ -169,11 +178,10 @@ class AutoDriveDataset(Dataset):
                     labels[:, 1] = 1 - labels[:, 1]
 
             # random up-down flip
-            ud_flip = False
-            if ud_flip and random.random() < 0.5:
+            if self.ud_flip and random.random() < 0.5:
                 img = np.flipud(img)
-                seg_label = np.filpud(seg_label)
-                lane_label = np.filpud(lane_label)
+                seg_label = np.flipud(seg_label)
+                lane_label = np.flipud(lane_label)
                 if len(labels):
                     labels[:, 2] = 1 - labels[:, 2]
         
@@ -186,7 +194,7 @@ class AutoDriveDataset(Dataset):
                 labels[:, [2, 4]] /= img.shape[0]  # height
                 labels[:, [1, 3]] /= img.shape[1]  # width
 
-        labels_out = torch.zeros((len(labels), 6))
+        labels_out = torch.zeros((len(labels), 6))      # index 0 is for image index within a batch; check collate_fn() below
         if len(labels):
             labels_out[:, 1:] = torch.from_numpy(labels)
         # Convert
@@ -204,6 +212,7 @@ class AutoDriveDataset(Dataset):
         else:
             _,seg1 = cv2.threshold(seg_label,1,255,cv2.THRESH_BINARY)
             _,seg2 = cv2.threshold(seg_label,1,255,cv2.THRESH_BINARY_INV)
+            
         _,lane1 = cv2.threshold(lane_label,1,255,cv2.THRESH_BINARY)
         _,lane2 = cv2.threshold(lane_label,1,255,cv2.THRESH_BINARY_INV)
 #        _,seg2 = cv2.threshold(seg_label[:,:,2],1,255,cv2.THRESH_BINARY)
@@ -256,7 +265,7 @@ class AutoDriveDataset(Dataset):
         label_det, label_seg, label_lane = [], [], []
         for i, l in enumerate(label):
             l_det, l_seg, l_lane = l
-            l_det[:, 0] = i  # add target image index for build_targets()
+            l_det[:, 0] = i  # add target image index (in the batch and not the dataset) for build_targets()
             label_det.append(l_det)
             label_seg.append(l_seg)
             label_lane.append(l_lane)

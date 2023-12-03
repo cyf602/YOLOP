@@ -20,10 +20,13 @@ id_dict_single = {'car': 0, 'bus': 1, 'truck': 2,'train': 3}
 def convert(size, box):
     dw = 1./(size[0])
     dh = 1./(size[1])
+    # center coordinates
     x = (box[0] + box[1])/2.0
     y = (box[2] + box[3])/2.0
+    # box width and height
     w = box[1] - box[0]
     h = box[3] - box[2]
+    # normalize w.r.t image width and height
     x = x*dw
     w = w*dw
     y = y*dh

@@ -215,11 +215,3 @@ def connect_lane(image, shadow_height=0):
         split_labels = [[label,] for label in selected_label]
         mask_post = fitlane(mask, split_labels, labels, stats)
         return mask_post
-
-
-
-
-
-
-
-

@@ -16,7 +16,7 @@ class MultiHeadLoss(nn.Module):
         - lambdas: (list) + IoU loss, weight for each loss
         """
         super().__init__()
-        # lambdas: [cls, obj, iou, la_seg, ll_seg, ll_iou]
+        # lambdas: [cls, obj, iou, da_seg, ll_seg, ll_iou]
         if not lambdas:
             lambdas = [1.0 for _ in range(len(losses) + 3)]
         assert all(lam >= 0.0 for lam in lambdas)

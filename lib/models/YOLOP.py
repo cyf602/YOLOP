@@ -504,7 +504,7 @@ YOLOP = [
 class MCnet(nn.Module):
     def __init__(self, block_cfg, **kwargs):
         super(MCnet, self).__init__()
-        layers, save= [], []
+        layers, save = [], []
         self.nc = 13
         self.detector_index = -1
         self.det_out_idx = block_cfg[0][0]
@@ -519,6 +519,7 @@ class MCnet(nn.Module):
             block_ = block(*args)
             block_.index, block_.from_ = i, from_
             layers.append(block_)
+            # TODO: what x%i is doing? What's the purpose of modulo? Should it be only x?
             save.extend(x % i for x in ([from_] if isinstance(from_, int) else from_) if x != -1)  # append to savelist
         assert self.detector_index == block_cfg[0][0]
 
@@ -532,8 +533,10 @@ class MCnet(nn.Module):
             # for x in self.forward(torch.zeros(1, 3, s, s)):
             #     print (x.shape)
             with torch.no_grad():
+                # TODO - calling object method before __init__() completed execution. Is this possible?
                 model_out = self.forward(torch.zeros(1, 3, s, s))
                 detects, _, _= model_out
+                # TODO - what is this?
                 Detector.stride = torch.tensor([s / x.shape[-2] for x in detects])  # forward
             # print("stride"+str(Detector.stride ))
             Detector.anchors /= Detector.stride.view(-1, 1, 1)  # Set the anchors for the corresponding scale
@@ -544,12 +547,13 @@ class MCnet(nn.Module):
         initialize_weights(self)
 
     def forward(self, x):
-        cache = []
+        cache = []  # stores the intermediate layer's output to be used at some point later
         out = []
         det_out = None
         Da_fmap = []
         LL_fmap = []
         for i, block in enumerate(self.model):
+            # -1 means the previous layer's output
             if block.from_ != -1:
                 x = cache[block.from_] if isinstance(block.from_, int) else [x if j == -1 else cache[j] for j in block.from_]       #calculate concat detect
             x = block(x)
@@ -559,7 +563,7 @@ class MCnet(nn.Module):
             if i == self.detector_index:
                 det_out = x
             cache.append(x if block.index in self.save else None)
-        out.insert(0,det_out)
+        out.insert(0, det_out)          # (det_out, da_seg, ll_seg)
         return out
             
     

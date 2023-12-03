@@ -13,6 +13,7 @@ _C.AUTO_RESUME = False       # Resume from the last training interrupt
 _C.NEED_AUTOANCHOR = True      # Re-select the prior anchor(k-means)    When training from scratch (epoch=0), set it to be true!
 _C.DEBUG = False
 _C.num_seg_class = 2
+_C.single_det_class = False     # detect only one class of objects
 
 # Cudnn related params
 _C.CUDNN = CN()
@@ -62,7 +63,8 @@ _C.DATASET.SELECT_DATA = False
 _C.DATASET.ORG_IMG_SIZE = [720, 1280]
 
 # training data augmentation
-_C.DATASET.FLIP = True
+_C.DATASET.LR_FLIP = True
+_C.DATASET.UD_FLIP = True
 _C.DATASET.SCALE_FACTOR = 0.25
 _C.DATASET.ROT_FACTOR = 10
 _C.DATASET.TRANSLATE = 0.1
@@ -110,7 +112,7 @@ _C.TRAIN.ENC_DET_ONLY = False       # Only train encoder and detection branch
 # Single task 
 _C.TRAIN.DRIVABLE_ONLY = False      # Only train da_segmentation task
 _C.TRAIN.LANE_ONLY = False          # Only train ll_segmentation task
-_C.TRAIN.DET_ONLY = False          # Only train detection task
+# Only train detection task - set _C.TRAIN.DET_ONLY above
 
 
 

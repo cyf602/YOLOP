@@ -5,13 +5,14 @@ from .AutoDriveDataset import AutoDriveDataset
 from .convert import convert, id_dict, id_dict_single
 from tqdm import tqdm
 
-single_cls = False       # just detect vehicle
 
 class BddDataset(AutoDriveDataset):
     def __init__(self, cfg, is_train, inputsize, transform=None):
         super().__init__(cfg, is_train, inputsize, transform)
-        self.db = self._get_db()
+        # create a list of dictionaries, each containing (image path, detections, drivable area mask path, lanelines mask path)
         self.cfg = cfg
+        self.single_cls = cfg.single_det_class  # detect only one class of objects
+        self.db = self._get_db()
 
     def _get_db(self):
         """
@@ -37,10 +38,12 @@ class BddDataset(AutoDriveDataset):
             with open(label_path, 'r') as f:
                 label = json.load(f)
             data = label['frames'][0]['objects']
-            data = self.filter_data(data)
+            data = self.filter_data(data)           # if single_class=True, detect only the classes in id_dict_single
             gt = np.zeros((len(data), 5))
+
             for idx, obj in enumerate(data):
                 category = obj['category']
+                # replace traffic light class with four classes - tl_red, tl_green, tl_yellow, tl_none
                 if category == "traffic light":
                     color = obj['attributes']['trafficLightColor']
                     category = "tl_" + color
@@ -50,13 +53,14 @@ class BddDataset(AutoDriveDataset):
                     x2 = float(obj['box2d']['x2'])
                     y2 = float(obj['box2d']['y2'])
                     cls_id = id_dict[category]
-                    if single_cls:
-                         cls_id=0
+                    # process only if one of the recognized classes; ignore unrecognized classes
+                    if self.single_cls:
+                         cls_id = 0
                     gt[idx][0] = cls_id
+                    # normalized coordinates for center x, center y, box width, and box height
                     box = convert((width, height), (x1, x2, y1, y2))
                     gt[idx][1:] = list(box)
                 
-
             rec = [{
                 'image': image_path,
                 'label': gt,
@@ -72,8 +76,8 @@ class BddDataset(AutoDriveDataset):
         remain = []
         for obj in data:
             if 'box2d' in obj.keys():  # obj.has_key('box2d'):
-                if single_cls:
-                    if obj['category'] in id_dict_single.keys():
+                if self.single_cls:
+                    if obj['category'] in id_dict_single.keys():    # detect only the classes in id_dict_single
                         remain.append(obj)
                 else:
                     remain.append(obj)
