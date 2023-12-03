@@ -37,7 +37,7 @@ def parse_args():
                         type=str,
                         default='runs/')
     parser.add_argument('--weights', nargs='+', type=str, default='/data2/zwt/wd/YOLOP/runs/BddDataset/detect_and_segbranch_whole/epoch-169.pth', help='model.pth path(s)')
-    parser.add_argument('--conf_thres', type=float, default=0.001, help='object confidence threshold')
+    parser.add_argument('--conf_thres', type=float, default=0.4, help='object confidence threshold')
     parser.add_argument('--iou_thres', type=float, default=0.6, help='IOU threshold for NMS')
     args = parser.parse_args()
 
@@ -81,7 +81,7 @@ def main():
 
     # det_idx_range = [str(i) for i in range(0,25)]
     model_dict = model.state_dict()
-    checkpoint_file = args.weights
+    checkpoint_file = args.weights[0]
     logger.info("=> loading checkpoint '{}'".format(checkpoint_file))
     checkpoint = torch.load(checkpoint_file)
     checkpoint_dict = checkpoint['state_dict']
@@ -92,7 +92,7 @@ def main():
 
     model = model.to(device)
     model.gr = 1.0
-    model.nc = 1
+    model.nc = 13
     print('bulid model finished')
 
     print("begin to load data")

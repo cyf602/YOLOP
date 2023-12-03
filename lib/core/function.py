@@ -99,10 +99,11 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
                       'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
                       'Speed {speed:.1f} samples/s\t' \
                       'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
-                      'Loss {loss.val:.5f} ({loss.avg:.5f})'.format(
+                      'Loss {loss.val:.5f} ({loss.avg:.5f})\t' \
+                      'LR: {lr:.6f}'.format(
                           epoch, i, len(train_loader), batch_time=batch_time,
                           speed=input.size(0)/batch_time.val,
-                          data_time=data_time, loss=losses)
+                          data_time=data_time, loss=losses, lr=optimizer.param_groups[0]['lr'])
                 logger.info(msg)
 
                 writer = writer_dict['writer']
@@ -146,7 +147,7 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
     save_hybrid=False
     log_imgs,wandb = min(16,100), None
 
-    nc = 1
+    nc = model.nc
     iouv = torch.linspace(0.5,0.95,10).to(device)     #iou vector for mAP@0.5:0.95
     niou = iouv.numel()
 
@@ -161,8 +162,11 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
     da_metric = SegmentationMetric(config.num_seg_class) #segment confusion matrix    
     ll_metric = SegmentationMetric(2) #segment confusion matrix
 
-    names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
-    colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
+    # names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
+    # colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
+    # Class Names for BDD100k; in BDD dataset, "bike" means "bicycle" and "motor" means "motorcycle"
+    names = {0: 'person', 1: 'rider', 2: 'car', 3: 'bus', 4: 'truck', 5: 'bicycle', 6: 'motorcycle', 7: 'tl_green', 8: 'tl_red', 9: 'tl_yellow', 10: 'tl_none', 11: 'traffic sign', 12: 'train'}
+    colors = [[0, 0, 0], [0, 0, 255], [0, 255, 0], [255, 0, 0], [0, 153, 204], [255, 255, 0], [255, 0, 255], [150, 75, 0], [230, 230, 250], [75, 0, 130], [139, 0, 139], [255, 102, 204], [102, 255, 153]]
     coco91class = coco80_to_coco91_class()
     
     s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
@@ -242,6 +246,12 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
             
             total_loss, head_losses = criterion((train_out,da_seg_out, ll_seg_out), target, shapes,model)   #Compute loss
             losses.update(total_loss.item(), img.size(0))
+
+            writer = writer_dict['writer']
+            global_steps = writer_dict['valid_global_steps']
+            writer.add_scalar('val_loss', losses.val, global_steps)
+            # writer.add_scalar('val_acc', acc.val, global_steps)
+            writer_dict['valid_global_steps'] = global_steps + 1
 
             #NMS
             t = time_synchronized()

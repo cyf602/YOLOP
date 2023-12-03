@@ -6,6 +6,8 @@ import onnxruntime as ort
 import numpy as np
 from lib.core.general import non_max_suppression
 
+# Class Names for BDD100k; in BDD dataset, "bike" means "bicycle" and "motor" means "motorcycle"
+names = ["person", "rider", "car", "bus", "truck", "bicycle", "motorcycle", "tl_green", "tl_red", "tl_yellow", "tl_none", "traffic sign", "train"]
 
 def resize_unscale(img, new_shape=(640, 640), color=114):
     shape = img.shape[:2]  # current shape [height, width]
@@ -34,13 +36,13 @@ def resize_unscale(img, new_shape=(640, 640), color=114):
     return canvas, r, dw, dh, new_unpad_w, new_unpad_h  # (dw,dh)
 
 
-def infer_yolop(weight="yolop-640-640.onnx",
-                img_path="./inference/images/7dd9ef45-f197db95.jpg"):
+def infer_yolop(weight="weights/yolop-640-640.onnx",
+                img_path="./inference/images/7dd9ef45-f197db95.jpg", 
+                conf_thres=0.4):
 
     ort.set_default_logger_severity(4)
-    onnx_path = f"./weights/{weight}"
-    ort_session = ort.InferenceSession(onnx_path)
-    print(f"Load {onnx_path} done!")
+    ort_session = ort.InferenceSession(weight)
+    print(f"Load {weight} done!")
 
     outputs_info = ort_session.get_outputs()
     inputs_info = ort_session.get_inputs()
@@ -52,10 +54,11 @@ def infer_yolop(weight="yolop-640-640.onnx",
 
     print("num outputs: ", len(outputs_info))
 
-    save_det_path = f"./pictures/detect_onnx.jpg"
-    save_da_path = f"./pictures/da_onnx.jpg"
-    save_ll_path = f"./pictures/ll_onnx.jpg"
-    save_merge_path = f"./pictures/output_onnx.jpg"
+    img_name_without_extension = os.path.basename(img_path).split('.')[0]
+    save_det_path = f"./pictures/{img_name_without_extension}_detect_onnx.jpg"
+    save_da_path = f"./pictures/{img_name_without_extension}_da_onnx.jpg"
+    save_ll_path = f"./pictures/{img_name_without_extension}_ll_onnx.jpg"
+    save_merge_path = f"./pictures/{img_name_without_extension}_output_onnx.jpg"
 
     img_bgr = cv2.imread(img_path)
     height, width, _ = img_bgr.shape
@@ -86,7 +89,7 @@ def infer_yolop(weight="yolop-640-640.onnx",
     )
 
     det_out = torch.from_numpy(det_out).float()
-    boxes = non_max_suppression(det_out)[0]  # [n,6] [x1,y1,x2,y2,conf,cls]
+    boxes = non_max_suppression(det_out, conf_thres=conf_thres)[0]  # [n,6] [x1,y1,x2,y2,conf,cls]
     boxes = boxes.cpu().numpy().astype(np.float32)
 
     if boxes.shape[0] == 0:
@@ -107,6 +110,7 @@ def infer_yolop(weight="yolop-640-640.onnx",
         x1, y1, x2, y2, conf, label = boxes[i]
         x1, y1, x2, y2, label = int(x1), int(y1), int(x2), int(y2), int(label)
         img_det = cv2.rectangle(img_det, (x1, y1), (x2, y2), (0, 255, 0), 2, 2)
+        img_det = cv2.putText(img_det, names[label], (x2-30, y2+15), cv2.FONT_HERSHEY_DUPLEX, 0.7, (0, 0, 255))
 
     cv2.imwrite(save_det_path, img_det)
 
@@ -116,8 +120,8 @@ def infer_yolop(weight="yolop-640-640.onnx",
 
     da_seg_mask = np.argmax(da_seg_out, axis=1)[0]  # (?,?) (0|1)
     ll_seg_mask = np.argmax(ll_seg_out, axis=1)[0]  # (?,?) (0|1)
-    print(da_seg_mask.shape)
-    print(ll_seg_mask.shape)
+    # print(da_seg_mask.shape)
+    # print(ll_seg_mask.shape)
 
     color_area = np.zeros((new_unpad_h, new_unpad_w, 3), dtype=np.uint8)
     color_area[da_seg_mask == 1] = [0, 255, 0]
@@ -140,6 +144,7 @@ def infer_yolop(weight="yolop-640-640.onnx",
         x1, y1, x2, y2, conf, label = boxes[i]
         x1, y1, x2, y2, label = int(x1), int(y1), int(x2), int(y2), int(label)
         img_merge = cv2.rectangle(img_merge, (x1, y1), (x2, y2), (0, 255, 0), 2, 2)
+        img_merge = cv2.putText(img_merge, names[label], (x2-30, y2+15), cv2.FONT_HERSHEY_DUPLEX, 0.7, (0, 0, 255))
 
     # da: resize to original size
     da_seg_mask = da_seg_mask * 255
@@ -164,9 +169,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--weight', type=str, default="yolop-640-640.onnx")
     parser.add_argument('--img', type=str, default="./inference/images/9aa94005-ff1d4c9a.jpg")
+    parser.add_argument('--conf_thres', type=float, default=0.4)
     args = parser.parse_args()
 
-    infer_yolop(weight=args.weight, img_path=args.img)
+    infer_yolop(weight=args.weight, img_path=args.img, conf_thres=args.conf_thres)
     """
     PYTHONPATH=. python3 ./test_onnx.py --weight yolop-640-640.onnx --img test.jpg
     """

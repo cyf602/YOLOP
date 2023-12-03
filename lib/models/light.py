@@ -104,6 +104,7 @@ MCnet_SPP = [
 [ -1, SPP, [8, 2, [5, 9, 13]]] #segmentation output
 ]
 # [2,6,3,9,5,13], [7,19,11,26,17,39], [28,64,44,103,61,183]
+
 MCnet_fast = [
 [ -1, Focus, [3, 32, 3]],#0
 [ -1, Conv, [32, 64, 3, 2]],#1
@@ -124,7 +125,7 @@ MCnet_fast = [
 [ -1, BottleneckCSP, [256, 256, 1, False, True]],#20
 [ [-1, 10], Concat, [1]],#22
 [ -1, BottleneckCSP, [512, 512, 1, False]],#23
-[ [17, 20, 23], Detect,  [1, [[3,9,5,11,4,20], [7,18,6,39,12,31], [19,50,38,81,68,157]], [128, 256, 512]]], #Detect output 24
+[ [17, 20, 23], Detect,  [13, [[3,9,5,11,4,20], [7,18,6,39,12,31], [19,50,38,81,68,157]], [128, 256, 512]]], #Detect output 24
 
 [ 16, Conv, [256, 64, 3, 1]],#25
 [ -1, Upsample, [None, 2, 'nearest']],#26
@@ -174,7 +175,7 @@ MCnet_light = [
 [ -1, Conv, [256, 256, 3, 2]],#21
 [ [-1, 10], Concat, [1]],#22
 [ -1, BottleneckCSP, [512, 512, 1, False]],#23
-[ [17, 20, 23], Detect,  [1, [[4,12,6,18,10,27], [15,38,24,59,39,78], [51,125,73,168,97,292]], [128, 256, 512]]], #Detect output 24
+[ [17, 20, 23], Detect,  [13, [[4,12,6,18,10,27], [15,38,24,59,39,78], [51,125,73,168,97,292]], [128, 256, 512]]], #Detect output 24
 
 [ 16, Conv, [256, 128, 3, 1]],#25
 [ -1, Upsample, [None, 2, 'nearest']],#26
@@ -226,7 +227,7 @@ MCnet_share = [
 [ -1, Conv, [256, 256, 3, 2]],      #21
 [ [-1, 10], Concat, [1]],   #22
 [ -1, BottleneckCSP, [512, 512, 1, False]],     #23
-[ [17, 20, 23], Detect,  [1, [[3,9,5,11,4,20], [7,18,6,39,12,31], [19,50,38,81,68,157]], [128, 256, 512]]], #Detect output 24
+[ [17, 20, 23], Detect,  [13, [[3,9,5,11,4,20], [7,18,6,39,12,31], [19,50,38,81,68,157]], [128, 256, 512]]], #Detect output 24
 
 [ 16, Conv, [256, 64, 3, 1]],   #25
 [ -1, Upsample, [None, 2, 'nearest']],  #26
@@ -395,8 +396,8 @@ class CSPDarknet(nn.Module):
     def __init__(self, block_cfg, **kwargs):
         super(CSPDarknet, self).__init__()
         layers, save= [], []
-        # self.nc = 13    #output category num
-        self.nc = 1
+        self.nc = 13    #output category num
+        # self.nc = 1
         self.detector_index = -1
 
         # Build model
