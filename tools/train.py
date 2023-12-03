@@ -6,6 +6,7 @@ sys.path.append(BASE_DIR)
 
 import pprint
 import time
+import datetime
 import torch
 import torch.nn.parallel
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -33,6 +34,7 @@ from lib.utils.utils import get_optimizer
 from lib.utils.utils import save_checkpoint
 from lib.utils.utils import create_logger, select_device
 from lib.utils import run_anchor
+import wandb
 
 
 def parse_args():
@@ -71,6 +73,32 @@ def parse_args():
 
 
 def main():
+    
+    # wandb initialization
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="YOLOP BDD100k",
+        name=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        # track hyperparameters and run metadata
+        config={
+        "learning_rate": cfg.TRAIN.LR0,
+        "architecture": "YOLOP",
+        "dataset": "BDD",
+        "start_epoch": cfg.TRAIN.BEGIN_EPOCH,
+        "end_epoch": cfg.TRAIN.END_EPOCH,
+        "batch size": cfg.TRAIN.BATCH_SIZE_PER_GPU,
+        "run info": "BDD: 65k train; 5k val; 10k test"
+        }
+    )
+    # Set custom axis for wandb: https://docs.wandb.ai/guides/track/log/customize-logging-axes
+    wandb.define_metric("iteration")
+    wandb.define_metric("lr", step_metric="iteration")
+    wandb.define_metric("avg_train_loss", step_metric="iteration")
+    wandb.define_metric("train/*", step_metric="iteration")
+    wandb.define_metric("epoch")
+    wandb.define_metric("val/*", step_metric="epoch")
+    wandb.define_metric("val_loss", step_metric="epoch")
+
     # set all the configurations
     args = parse_args()
     update_config(cfg, args)
@@ -327,7 +355,7 @@ def main():
         # evaluate on validation set
         if (epoch % cfg.TRAIN.VAL_FREQ == 0 or epoch == cfg.TRAIN.END_EPOCH) and rank in [-1, 0]:
             # print('validate')
-            da_segment_results,ll_segment_results,detect_results, total_loss,maps, times = validate(
+            da_segment_results, ll_segment_results, detect_results, total_loss, maps, times = validate(
                 epoch,cfg, valid_loader, valid_dataset, model, criterion,
                 final_output_dir, tb_log_dir, writer_dict,
                 logger, device, rank
@@ -344,6 +372,12 @@ def main():
                           p=detect_results[0],r=detect_results[1],map50=detect_results[2],map=detect_results[3],
                           t_inf=times[0], t_nms=times[1])
             logger.info(msg)
+
+            wandb.log({"epoch": epoch, "val_loss": total_loss, 
+                       "val/det/map50":detect_results[2], "val/det/map":detect_results[3], "val/det/p":detect_results[0], "val/det/r":detect_results[1],
+                       "val/da/acc": da_segment_results[0], "val/da/iou": da_segment_results[1], "val/da/miou": da_segment_results[2],
+                       "val/ll/acc": ll_segment_results[0], "val/ll/iou": ll_segment_results[1], "val/ll/miou": ll_segment_results[2]
+                    })
 
             # if perf_indicator >= best_perf:
             #     best_perf = perf_indicator
@@ -390,6 +424,7 @@ def main():
     else:
         dist.destroy_process_group()
 
-
+    wandb.finish()
+    
 if __name__ == '__main__':
     main()

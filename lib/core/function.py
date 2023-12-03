@@ -16,6 +16,7 @@ import os
 import math
 from torch.cuda import amp
 from tqdm import tqdm
+import wandb
 
 
 def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_batch, num_warmup,
@@ -76,6 +77,16 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
             outputs = model(input)
             total_loss, head_losses = criterion(outputs, target, shapes,model)
             # print(head_losses)
+        
+        wandb.log({"iteration": num_iter, "lr": optimizer.param_groups[0]['lr'], 
+                "train/det_iou_loss": head_losses[0],
+                "train/obj_loss": head_losses[1],
+                "train/class_loss": head_losses[2],
+                "train/da_loss": head_losses[3],
+                "train/ll_loss": head_losses[4],
+                "train/ll_iou_loss": head_losses[5],
+                "train/total_loss": head_losses[6]
+                })
 
         # compute gradient and do update step
         optimizer.zero_grad()
@@ -106,9 +117,11 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
                           data_time=data_time, loss=losses, lr=optimizer.param_groups[0]['lr'])
                 logger.info(msg)
 
+                wandb.log({"avg_train_loss": losses.val})
+
                 writer = writer_dict['writer']
                 global_steps = writer_dict['train_global_steps']
-                writer.add_scalar('train_loss', losses.val, global_steps)
+                writer.add_scalar('avg_train_loss', losses.val, global_steps)
                 # writer.add_scalar('train_acc', acc.val, global_steps)
                 writer_dict['train_global_steps'] = global_steps + 1
 
@@ -145,17 +158,17 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
     save_conf=False # save auto-label confidences
     verbose=False
     save_hybrid=False
-    log_imgs,wandb = min(16,100), None
+    log_imgs = min(16,100)
 
     nc = model.nc
     iouv = torch.linspace(0.5,0.95,10).to(device)     #iou vector for mAP@0.5:0.95
     niou = iouv.numel()
 
-    try:
-        import wandb
-    except ImportError:
-        wandb = None
-        log_imgs = 0
+    # try:
+    #     import wandb
+    # except ImportError:
+    #     wandb = None
+    #     log_imgs = 0
 
     seen =  0 
     confusion_matrix = ConfusionMatrix(nc=model.nc) #detector confusion matrix
@@ -187,7 +200,7 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
 
     # switch to train mode
     model.eval()
-    jdict, stats, ap, ap_class, wandb_images = [], [], [], [], []
+    jdict, stats, ap, ap_class, wandb_images, wandb_da_images, wandb_ll_images = [], [], [], [], [], [], []
 
     for batch_i, (img, target, paths, shapes) in tqdm(enumerate(val_loader), total=len(val_loader)):
         if not config.DEBUG:
@@ -268,6 +281,7 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
                 if batch_i == 0:
                     for i in range(test_batch_size):
                         img_test = cv2.imread(paths[i])
+                        path = Path(paths[i])
                         da_seg_mask = da_seg_out[i][:, pad_h:height-pad_h, pad_w:width-pad_w].unsqueeze(0)
                         da_seg_mask = torch.nn.functional.interpolate(da_seg_mask, scale_factor=int(1/ratio), mode='bilinear')
                         _, da_seg_mask = torch.max(da_seg_mask, 1)
@@ -281,8 +295,11 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
                         # seg_mask = seg_mask > 0.5
                         # plot_img_and_mask(img_test, seg_mask, i,epoch,save_dir)
                         img_test1 = img_test.copy()
-                        _ = show_seg_result(img_test, da_seg_mask, i,epoch,save_dir)
-                        _ = show_seg_result(img_test1, da_gt_mask, i, epoch, save_dir, is_gt=True)
+                        da_pred_img = show_seg_result(img_test, da_seg_mask, i,epoch,save_dir)
+                        da_gt_img = show_seg_result(img_test1, da_gt_mask, i, epoch, save_dir, is_gt=True)
+                        da_comp = np.concatenate((da_gt_img, da_pred_img), axis=0)
+                        da_comp = cv2.cvtColor(da_comp, cv2.COLOR_BGR2RGB)
+                        wandb_da_images.append(wandb.Image(da_comp, caption=path.name))
 
                         img_ll = cv2.imread(paths[i])
                         ll_seg_mask = ll_seg_out[i][:, pad_h:height-pad_h, pad_w:width-pad_w].unsqueeze(0)
@@ -298,8 +315,11 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
                         # seg_mask = seg_mask > 0.5
                         # plot_img_and_mask(img_test, seg_mask, i,epoch,save_dir)
                         img_ll1 = img_ll.copy()
-                        _ = show_seg_result(img_ll, ll_seg_mask, i,epoch,save_dir, is_ll=True)
-                        _ = show_seg_result(img_ll1, ll_gt_mask, i, epoch, save_dir, is_ll=True, is_gt=True)
+                        ll_pred_img = show_seg_result(img_ll, ll_seg_mask, i,epoch,save_dir, is_ll=True)
+                        ll_gt_img = show_seg_result(img_ll1, ll_gt_mask, i, epoch, save_dir, is_ll=True, is_gt=True)
+                        ll_comp = np.concatenate((ll_gt_img, ll_pred_img), axis=0)
+                        ll_comp = cv2.cvtColor(ll_comp, cv2.COLOR_BGR2RGB)
+                        wandb_ll_images.append(wandb.Image(ll_comp, caption=path.name))
 
                         img_det = cv2.imread(paths[i])
                         img_gt = img_det.copy()
@@ -324,6 +344,10 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
                             xyxy = (x1,y1,x2,y2)
                             plot_one_box(xyxy, img_gt , label=label_det_gt, color=colors[int(cls)], line_thickness=3)
                         cv2.imwrite(save_dir+"/batch_{}_{}_det_gt.png".format(epoch,i),img_gt)
+                
+                # log drivable area and lanelines to W&B
+                # wandb.log({f"val/{epoch}/da_images": wandb_da_images})
+                # wandb.log({f"val/{epoch}/ll_images": wandb_ll_images})
 
         # Statistics per image
         # output([xyxy,conf,cls])
@@ -435,6 +459,12 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
     # Print results
     pf = '%20s' + '%12.3g' * 6  # print format
     print(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
+    wandb.log({
+                "val/all/precision": mp,
+                "val/all/recall": mr,
+                "val/all/AP50": map50,
+                "val/all/AP": map
+            })
     #print(map70)
     #print(map75)
 
@@ -442,6 +472,12 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
     if (verbose or (nc <= 20 and not training)) and nc > 1 and len(stats):
         for i, c in enumerate(ap_class):
             print(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+            wandb.log({
+                        f"val/{names[c]}/precision": p[i],
+                        f"val/{names[c]}/recall": r[i],
+                        f"val/{names[c]}/AP50": ap50[i],
+                        f"val/{names[c]}/AP": ap[i]
+                    })
 
     # Print speeds
     t = tuple(x / seen * 1E3 for x in (t_inf, t_nms, t_inf + t_nms)) + (imgsz, imgsz, batch_size)  # tuple
@@ -452,8 +488,10 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
     if config.TEST.PLOTS:
         confusion_matrix.plot(save_dir=save_dir, names=list(names.values()))
         if wandb and wandb.run:
-            wandb.log({"Images": wandb_images})
-            wandb.log({"Validation": [wandb.Image(str(f), caption=f.name) for f in sorted(save_dir.glob('test*.jpg'))]})
+            save_dir_path = Path(save_dir)
+            # log detections to W&B
+            # wandb.log({f"val/{epoch}/Images": wandb_images})
+            # wandb.log({f"val/{epoch}/Validation": [wandb.Image(str(f), caption=f.name) for f in sorted(save_dir_path.glob('test*.jpg'))]})
 
     # Save JSON
     if config.TEST.SAVE_JSON and len(jdict):
