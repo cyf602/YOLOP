@@ -562,6 +562,11 @@ class MCnet(nn.Module):
                 out.append(m(x))
             if i == self.detector_index:
                 det_out = x
+                # for exporting model, comment out above line and uncomment below lines
+                # if self.training:
+                #     det_out = x
+                # else:
+                #     det_out = x[0]  # (torch.cat(z, 1), input_feat) if test
             cache.append(x if block.index in self.save else None)
         out.insert(0, det_out)          # (det_out, da_seg, ll_seg)
         return out
