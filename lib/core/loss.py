@@ -105,12 +105,15 @@ class MultiHeadLoss(nn.Module):
                     t = torch.full_like(ps[:, 5:], cn, device=device)  # targets
                     t[range(n), tcls[i]] = cp
                     lcls += BCEcls(ps[:, 5:], t)  # BCE
+
             lobj += BCEobj(pi[..., 4], tobj) * balance[i]  # obj loss
 
+        # drivable area loss
         drive_area_seg_predicts = predictions[1].view(-1)
         drive_area_seg_targets = targets[1].view(-1)
         lseg_da = BCEseg(drive_area_seg_predicts, drive_area_seg_targets)
 
+        # lanelines loss
         lane_line_seg_predicts = predictions[2].view(-1)
         lane_line_seg_targets = targets[2].view(-1)
         lseg_ll = BCEseg(lane_line_seg_predicts, lane_line_seg_targets)
@@ -120,8 +123,8 @@ class MultiHeadLoss(nn.Module):
         pad_w, pad_h = shapes[0][1][1]
         pad_w = int(pad_w)
         pad_h = int(pad_h)
-        _,lane_line_pred=torch.max(predictions[2], 1)
-        _,lane_line_gt=torch.max(targets[2], 1)
+        _, lane_line_pred = torch.max(predictions[2], 1)
+        _, lane_line_gt = torch.max(targets[2], 1)
         lane_line_pred = lane_line_pred[:, pad_h:height-pad_h, pad_w:width-pad_w]
         lane_line_gt = lane_line_gt[:, pad_h:height-pad_h, pad_w:width-pad_w]
         metric.reset()
@@ -223,6 +226,7 @@ class FocalLoss(nn.Module):
         # loss *= self.alpha * (1.000001 - p_t) ** self.gamma  # non-zero power for gradient stability
 
         # TF implementation https://github.com/tensorflow/addons/blob/v0.7.1/tensorflow_addons/losses/focal_loss.py
+        # Explanation: https://medium.com/visionwizard/understanding-focal-loss-a-quick-read-b914422913e7
         pred_prob = torch.sigmoid(pred)  # prob from logits
         p_t = true * pred_prob + (1 - true) * (1 - pred_prob)
         alpha_factor = true * self.alpha + (1 - true) * (1 - self.alpha)

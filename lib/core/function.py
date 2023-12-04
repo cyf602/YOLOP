@@ -282,6 +282,10 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
 
             if config.TEST.PLOTS:
                 if batch_i == 0:
+                    epoch_dir = os.path.join(save_dir, "epoch-{}".format(epoch))
+                    if not os.path.exists(epoch_dir):
+                        os.mkdir(epoch_dir)
+
                     for i in range(test_batch_size):
                         img_test = cv2.imread(paths[i])
                         path = Path(paths[i])
@@ -298,8 +302,8 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
                         # seg_mask = seg_mask > 0.5
                         # plot_img_and_mask(img_test, seg_mask, i,epoch,save_dir)
                         img_test1 = img_test.copy()
-                        da_pred_img = show_seg_result(img_test, da_seg_mask, i,epoch,save_dir)
-                        da_gt_img = show_seg_result(img_test1, da_gt_mask, i, epoch, save_dir, is_gt=True)
+                        da_pred_img = show_seg_result(img_test, da_seg_mask, i, epoch_dir)
+                        da_gt_img = show_seg_result(img_test1, da_gt_mask, i, epoch_dir, is_gt=True)
                         da_comp = np.concatenate((da_gt_img, da_pred_img), axis=0)
                         da_comp = cv2.cvtColor(da_comp, cv2.COLOR_BGR2RGB)
                         wandb_da_images.append(wandb.Image(da_comp, caption=path.name))
@@ -318,8 +322,8 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
                         # seg_mask = seg_mask > 0.5
                         # plot_img_and_mask(img_test, seg_mask, i,epoch,save_dir)
                         img_ll1 = img_ll.copy()
-                        ll_pred_img = show_seg_result(img_ll, ll_seg_mask, i,epoch,save_dir, is_ll=True)
-                        ll_gt_img = show_seg_result(img_ll1, ll_gt_mask, i, epoch, save_dir, is_ll=True, is_gt=True)
+                        ll_pred_img = show_seg_result(img_ll, ll_seg_mask, i, epoch_dir, is_ll=True)
+                        ll_gt_img = show_seg_result(img_ll1, ll_gt_mask, i, epoch_dir, is_ll=True, is_gt=True)
                         ll_comp = np.concatenate((ll_gt_img, ll_pred_img), axis=0)
                         ll_comp = cv2.cvtColor(ll_comp, cv2.COLOR_BGR2RGB)
                         wandb_ll_images.append(wandb.Image(ll_comp, caption=path.name))
@@ -333,7 +337,7 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
                             #print(cls)
                             label_det_pred = f'{names[int(cls)]} {conf:.2f}'
                             plot_one_box(xyxy, img_det , label=label_det_pred, color=colors[int(cls)], line_thickness=3)
-                        cv2.imwrite(save_dir+"/batch_{}_{}_det_pred.png".format(epoch,i),img_det)
+                        cv2.imwrite(os.path.join(epoch_dir, "{}_det_pred.png".format(i)), img_det)
 
                         labels = target[0][target[0][:, 0] == i, 1:]
                         # print(labels)
@@ -346,7 +350,7 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
                             label_det_gt = f'{names[int(cls)]}'
                             xyxy = (x1,y1,x2,y2)
                             plot_one_box(xyxy, img_gt , label=label_det_gt, color=colors[int(cls)], line_thickness=3)
-                        cv2.imwrite(save_dir+"/batch_{}_{}_det_gt.png".format(epoch,i),img_gt)
+                        cv2.imwrite(os.path.join(epoch_dir, "{}_det_gt.png".format(i)), img_gt)
                 
                 # log drivable area and lanelines to W&B
                 # wandb.log({f"val/{epoch}/da_images": wandb_da_images})

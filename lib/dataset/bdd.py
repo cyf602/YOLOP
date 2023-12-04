@@ -39,6 +39,7 @@ class BddDataset(AutoDriveDataset):
                 label = json.load(f)
             data = label['frames'][0]['objects']
             data = self.filter_data(data)           # if single_class=True, detect only the classes in id_dict_single
+            # (class id, center x, center y, w, h)  # coordinates are normalized w.r.t to image dimensions
             gt = np.zeros((len(data), 5))
 
             for idx, obj in enumerate(data):
@@ -47,13 +48,15 @@ class BddDataset(AutoDriveDataset):
                 if category == "traffic light":
                     color = obj['attributes']['trafficLightColor']
                     category = "tl_" + color
+                
+                # process only if one of the recognized classes; ignore unrecognized classes
                 if category in id_dict.keys():
                     x1 = float(obj['box2d']['x1'])
                     y1 = float(obj['box2d']['y1'])
                     x2 = float(obj['box2d']['x2'])
                     y2 = float(obj['box2d']['y2'])
                     cls_id = id_dict[category]
-                    # process only if one of the recognized classes; ignore unrecognized classes
+                    # if you have multiple classes in id_dict_single, all of them get merged/mapped to class id 0    
                     if self.single_cls:
                          cls_id = 0
                     gt[idx][0] = cls_id

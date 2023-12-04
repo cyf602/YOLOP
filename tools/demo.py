@@ -28,6 +28,8 @@ from lib.utils import plot_one_box,show_seg_result
 from lib.core.function import AverageMeter
 from lib.core.postprocess import morphological_process, connect_lane
 from tqdm import tqdm
+
+
 normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
     )
@@ -53,6 +55,7 @@ def detect(cfg,opt):
     torch.cuda.device_count()
 
     device = select_device(logger,opt.device)
+    
     if os.path.exists(opt.save_dir):  # output dir
         shutil.rmtree(opt.save_dir)  # delete dir
     os.makedirs(opt.save_dir)  # make new dir
