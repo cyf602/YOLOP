@@ -101,9 +101,10 @@ def main():
 
     # set all the configurations
     args = parse_args()
+    # update the default configs with the user provided ones
     update_config(cfg, args)
 
-    # Set DDP variables
+    # Set DDP variables - for multi-GPU training (https://pytorch.org/docs/stable/distributed.html#environment-variable-initialization)
     world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
     global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
 
@@ -116,6 +117,7 @@ def main():
         cfg, cfg.LOG_DIR, 'train', rank=rank)
 
     if rank in [-1, 0]:
+        # log the config and user provided arguments
         logger.info(pprint.pformat(args))
         logger.info(cfg)
 
@@ -127,7 +129,7 @@ def main():
     else:
         writer_dict = None
 
-    # cudnn related setting
+    # cudnn related setting (https://discuss.pytorch.org/t/what-is-the-differenc-between-cudnn-deterministic-and-cudnn-benchmark/38054/3)
     cudnn.benchmark = cfg.CUDNN.BENCHMARK
     torch.backends.cudnn.deterministic = cfg.CUDNN.DETERMINISTIC
     torch.backends.cudnn.enabled = cfg.CUDNN.ENABLED
@@ -173,9 +175,6 @@ def main():
     begin_epoch = cfg.TRAIN.BEGIN_EPOCH
 
     if rank in [-1, 0]:
-        checkpoint_file = os.path.join(
-            os.path.join(cfg.LOG_DIR, cfg.DATASET.DATASET), 'checkpoint.pth'
-        )
         if os.path.exists(cfg.MODEL.PRETRAINED):
             logger.info("=> loading model '{}'".format(cfg.MODEL.PRETRAINED))
             checkpoint = torch.load(cfg.MODEL.PRETRAINED)
@@ -201,6 +200,10 @@ def main():
             model.load_state_dict(model_dict)
             logger.info("=> loaded det branch checkpoint '{}' ".format(checkpoint_file))
         
+        checkpoint_file = os.path.join(
+            os.path.join(cfg.LOG_DIR, cfg.DATASET.DATASET), 'checkpoint.pth'
+        )
+
         if cfg.AUTO_RESUME and os.path.exists(checkpoint_file):
             logger.info("=> loading checkpoint '{}'".format(checkpoint_file))
             checkpoint = torch.load(checkpoint_file)
@@ -212,60 +215,65 @@ def main():
             optimizer.load_state_dict(checkpoint['optimizer'])
             logger.info("=> loaded checkpoint '{}' (epoch {})".format(
                 checkpoint_file, checkpoint['epoch']))
-            #cfg.NEED_AUTOANCHOR = False     #disable autoanchor
+            #cfg.NEED_AUTOANCHOR = False     # disable autoanchor
         # model = model.to(device)
 
-        if cfg.TRAIN.SEG_ONLY:  #Only train two segmentation branchs
+        if cfg.TRAIN.SEG_ONLY:  # Only train two segmentation branchs
             logger.info('freeze encoder and Det head...')
             for k, v in model.named_parameters():
-                v.requires_grad = True  # train all layers
                 if k.split(".")[1] in Encoder_para_idx + Det_Head_para_idx:
                     print('freezing %s' % k)
                     v.requires_grad = False
+                else:
+                    v.requires_grad = True
 
-        if cfg.TRAIN.DET_ONLY:  #Only train detection branch
+        if cfg.TRAIN.DET_ONLY:  # Only train detection branch
             logger.info('freeze encoder and two Seg heads...')
             # print(model.named_parameters)
             for k, v in model.named_parameters():
-                v.requires_grad = True  # train all layers
                 if k.split(".")[1] in Encoder_para_idx + Da_Seg_Head_para_idx + Ll_Seg_Head_para_idx:
                     print('freezing %s' % k)
                     v.requires_grad = False
+                else:
+                    v.requires_grad = True
 
         if cfg.TRAIN.ENC_SEG_ONLY:  # Only train encoder and two segmentation branchs
             logger.info('freeze Det head...')
             for k, v in model.named_parameters():
-                v.requires_grad = True  # train all layers 
                 if k.split(".")[1] in Det_Head_para_idx:
                     print('freezing %s' % k)
                     v.requires_grad = False
+                else:
+                    v.requires_grad = True
 
-        if cfg.TRAIN.ENC_DET_ONLY or cfg.TRAIN.DET_ONLY:    # Only train encoder and detection branchs
+        if cfg.TRAIN.ENC_DET_ONLY:    # Only train encoder and detection branchs
             logger.info('freeze two Seg heads...')
             for k, v in model.named_parameters():
-                v.requires_grad = True  # train all layers
                 if k.split(".")[1] in Da_Seg_Head_para_idx + Ll_Seg_Head_para_idx:
                     print('freezing %s' % k)
                     v.requires_grad = False
-
+                else:
+                    v.requires_grad = True
 
         if cfg.TRAIN.LANE_ONLY: 
             logger.info('freeze encoder and Det head and Da_Seg heads...')
             # print(model.named_parameters)
             for k, v in model.named_parameters():
-                v.requires_grad = True  # train all layers
                 if k.split(".")[1] in Encoder_para_idx + Da_Seg_Head_para_idx + Det_Head_para_idx:
                     print('freezing %s' % k)
                     v.requires_grad = False
+                else:
+                    v.requires_grad = True
 
         if cfg.TRAIN.DRIVABLE_ONLY:
             logger.info('freeze encoder and Det head and Ll_Seg heads...')
             # print(model.named_parameters)
             for k, v in model.named_parameters():
-                v.requires_grad = True  # train all layers
                 if k.split(".")[1] in Encoder_para_idx + Ll_Seg_Head_para_idx + Det_Head_para_idx:
                     print('freezing %s' % k)
                     v.requires_grad = False
+                else:
+                    v.requires_grad = True
         
     if rank == -1 and torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model, device_ids=cfg.GPUS)
@@ -276,7 +284,7 @@ def main():
 
 
     # assign model params
-    model.gr = 1.0
+    model.gr = 1.0          # TODO - what is this?
     model.nc = 13
     # print('bulid model finished')
 
@@ -360,7 +368,7 @@ def main():
                 final_output_dir, tb_log_dir, writer_dict,
                 logger, device, rank
             )
-            fi = fitness(np.array(detect_results).reshape(1, -1))  #目标检测评价指标
+            # fi = fitness(np.array(detect_results).reshape(1, -1))  #目标检测评价指标
 
             msg = 'Epoch: [{0}]    Loss({loss:.3f})\n' \
                       'Driving area Segment: Acc({da_seg_acc:.3f})    IOU ({da_seg_iou:.3f})    mIOU({da_seg_miou:.3f})\n' \
