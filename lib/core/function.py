@@ -457,7 +457,7 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
     map75 = None
     if len(stats) and stats[0].any():
         p, r, ap, f1, ap_class = ap_per_class(*stats, plot=False, save_dir=save_dir, names=names)
-        ap50, ap70, ap75,ap = ap[:, 0], ap[:,4], ap[:,5],ap.mean(1)  # [P, R, AP@0.5, AP@0.5:0.95]
+        ap50, ap70, ap75, ap = ap[:, 0], ap[:,4], ap[:,5],ap.mean(1)  # [P, R, AP@0.5, AP@0.5:0.95]
         mp, mr, map50, map70, map75, map = p.mean(), r.mean(), ap50.mean(), ap70.mean(),ap75.mean(),ap.mean()
         nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
     else:
@@ -465,6 +465,7 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
 
     # Print results
     pf = '%20s' + '%12.3g' * 6  # print format
+    print("{:>20s}  {:s}  {:s}{:>10s} {:>10s} {:>10s}   {:>10s}".format("class", "Total Images", "Class Images", "Precision", "Recall", "mAP50", "mAP50-95"))
     print(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
     wandb.log({
                 "val/all/precision": mp,
