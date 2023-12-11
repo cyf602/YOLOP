@@ -1,3 +1,16 @@
+# Updates
+- I modified the code to work with the 10 classes in BDD100k. The code internally replaces traffic light class with four classes tl_green, tl_red, tl_yellow, and tl_none. So, there are 13 detection classes in total.
+- A few bug fixes
+- Weights & Biases logging changes
+- I trained the model end-to-end for 100 epochs. After around 70 epochs, drivable area and laneline segmentation accuracy saturated, whereas detection output improved by a very small margin. 
+- To see if the detection improves further, I tried fine-tuning only the detection head for another 100 epochs. This did improve traffic light detection, but other class detections deteriorated.
+- Sample output for epoch 100: [Sample1](https://drive.google.com/file/d/1gOC366KX9UrnNknuLxvU0yeAEDFob9Wt/view?usp=sharing) [Sample2](https://drive.google.com/file/d/1WVUZXlZ8zZ-BAii3D3Bd6onRoaTJrr7h/view?usp=sharing)
+- In the above videos, I have used short forms for classes.
+
+
+
+
+# ORIGINAL README
 <div align="left">   
 
 ## You Only :eyes: Once for Panoptic ​ :car: Perception
