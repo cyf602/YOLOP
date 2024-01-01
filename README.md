@@ -8,7 +8,8 @@
 - In the above videos, I have used short forms for classes.
 
 
-Please "Star" the repo if it helps you!
+**Please "Star" the repo if it helps you!**
+
 
 
 # ORIGINAL README
