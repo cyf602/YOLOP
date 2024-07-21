@@ -67,7 +67,7 @@ def filter_pic(data):
 
 def main(mode="train"):
     image_dir = "bdd/bdd100k/images/100k/{}".format(mode)
-    val_dir = "bdd/bdd100k/labels/100k/{}".format(mode)
+    val_dir = "/media/cyf/Data/BDD100k/labels/100k/{}".format(mode)
     out_dir = 'bdd_seg_gt/{}'.format(mode)
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)

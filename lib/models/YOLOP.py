@@ -17,7 +17,7 @@ from lib.utils import check_anchor_order
 from lib.core.evaluate import SegmentationMetric
 from lib.utils.utils import time_synchronized
 
-"""
+"""#MCnet_SPP
 MCnet_SPP = [
 [ -1, Focus, [3, 32, 3]],
 [ -1, Conv, [32, 64, 3, 2]],
@@ -107,9 +107,8 @@ MCnet_0 = [
 [ -1, Upsample, [None, 2, 'nearest']],
 [ -1, Conv, [8, 2, 3, 1]], #Lane line segmentation output
 ]
-
-
-# The lane line and the driving area segment branches share information with each other
+"""
+"""# The lane line and the driving area segment branches share information with each other
 MCnet_share = [
 [ -1, Focus, [3, 32, 3]],   #0
 [ -1, Conv, [32, 64, 3, 2]],    #1
@@ -168,8 +167,8 @@ MCnet_share = [
 [ -1, Upsample, [None, 2, 'nearest']],  #47
 [ -1, Conv, [16, 2, 3, 1]] #48Lane line segmentation output
 ]
-
-# The lane line and the driving area segment branches without share information with each other
+"""
+"""# The lane line and the driving area segment branches without share information with each other
 MCnet_no_share = [
 [ -1, Focus, [3, 32, 3]],   #0
 [ -1, Conv, [32, 64, 3, 2]],    #1
@@ -327,9 +326,9 @@ MCnet_Da_feedback1 = [
 [ [39, 42, 45], Detect,  [1, [[3,9,5,11,4,20], [7,18,6,39,12,31], [19,50,38,81,68,157]], [128, 256, 512]]] #Detect output 46
 ]
 
+"""
 
-
-# The lane line and the driving area segment branches share information with each other and feedback to det_head
+"""# The lane line and the driving area segment branches share information with each other and feedback to det_head
 MCnet_Da_feedback2 = [
 [47, 26, 35],   #Det_out_idx, Da_Segout_idx, LL_Segout_idx
 [25, 28, 31, 33],   #layer in Da_branch to do SAD
@@ -502,39 +501,41 @@ YOLOP = [
 
 
 class MCnet(nn.Module):
-    def __init__(self, block_cfg, **kwargs):
+    def __init__(self, block_cfg, **kwargs):#block_cfg就是上面的YOLOP
         super(MCnet, self).__init__()
         layers, save= [], []
         self.nc = 1
         self.detector_index = -1
-        self.det_out_idx = block_cfg[0][0]
-        self.seg_out_idx = block_cfg[0][1:]
-        
+        self.det_out_idx = block_cfg[0][0]#24
+        self.seg_out_idx = block_cfg[0][1:]#33 42
+        # print("out",self.seg_out_idx,self.det_out_idx)
 
         # Build model
         for i, (from_, block, args) in enumerate(block_cfg[1:]):
-            block = eval(block) if isinstance(block, str) else block  # eval strings
-            if block is Detect:
-                self.detector_index = i
+            # print( i, (from_, block, args))#i是层数，后面分别对应YOLOP 上一层号，模块类型，参数
+            block = eval(block) if isinstance(block, str) else block  # eval strings#eval将字符串解析成代码表达式运行
+            if block is Detect:#is判断是否是同一个对象
+                self.detector_index = i#找detection对应层数
             block_ = block(*args)
             block_.index, block_.from_ = i, from_
-            layers.append(block_)
+            layers.append(block_)#叠起来
             save.extend(x % i for x in ([from_] if isinstance(from_, int) else from_) if x != -1)  # append to savelist
         assert self.detector_index == block_cfg[0][0]
-
+        # print("save:",save)
         self.model, self.save = nn.Sequential(*layers), sorted(save)
         self.names = [str(i) for i in range(self.nc)]
-
+        # print(self.names)
         # set stride、anchor for detector
         Detector = self.model[self.detector_index]  # detector
-        if isinstance(Detector, Detect):
+        if isinstance(Detector, Detect):#isinstance判断对象是否是对应类型
             s = 128  # 2x min stride
             # for x in self.forward(torch.zeros(1, 3, s, s)):
             #     print (x.shape)
             with torch.no_grad():
-                model_out = self.forward(torch.zeros(1, 3, s, s))
+                model_out = self.forward(torch.zeros(1, 3, s, s))#模型输出 detects, dring_area_seg, lane_line_seg(L590)
                 detects, _, _= model_out
-                Detector.stride = torch.tensor([s / x.shape[-2] for x in detects])  # forward
+                # print(detects)
+                Detector.stride = torch.tensor([s / x.shape[-2]  for x in detects])  # forward,x.shape[-2]指倒数第二个维度
             # print("stride"+str(Detector.stride ))
             Detector.anchors /= Detector.stride.view(-1, 1, 1)  # Set the anchors for the corresponding scale
             check_anchor_order(Detector)
@@ -558,8 +559,10 @@ class MCnet(nn.Module):
                 out.append(m(x))
             if i == self.detector_index:
                 det_out = x
-            cache.append(x if block.index in self.save else None)
-        out.insert(0,det_out)
+            # if i!=self.detector_index:# and i !=self.seg_out_idx:
+                # print(i,":",x.shape)
+            cache.append(x if block.index in self.save else None)#暂存模块
+        out.insert(0,det_out)#列表中插入元素，0为i插入元素位置，detout为插入的值
         return out
             
     

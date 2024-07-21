@@ -51,6 +51,7 @@ def detect(cfg,opt):
 
     # Load model
     model = get_net(cfg)
+    # print("model:",model)
     checkpoint = torch.load(opt.weights, map_location= device)
     model.load_state_dict(checkpoint['state_dict'])
     model = model.to(device)
@@ -58,14 +59,14 @@ def detect(cfg,opt):
         model.half()  # to FP16
 
     # Set Dataloader
-    if opt.source.isnumeric():
+    if opt.source.isnumeric():#判断是否只由数字组成
         cudnn.benchmark = True  # set True to speed up constant image size inference
         dataset = LoadStreams(opt.source, img_size=opt.img_size)
         bs = len(dataset)  # batch_size
     else:
         dataset = LoadImages(opt.source, img_size=opt.img_size)
         bs = 1  # batch_size
-
+        # print("dataset:",dataset)
 
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
@@ -90,7 +91,7 @@ def detect(cfg,opt):
             img = img.unsqueeze(0)
         # Inference
         t1 = time_synchronized()
-        det_out, da_seg_out,ll_seg_out= model(img)
+        det_out, da_seg_out,ll_seg_out= model(img)#[1,X,6],[1,2,480,800]*2
         t2 = time_synchronized()
         # if i == 0:
         #     print(det_out)
@@ -128,7 +129,7 @@ def detect(cfg,opt):
         # Lane line post-processing
         #ll_seg_mask = morphological_process(ll_seg_mask, kernel_size=7, func_type=cv2.MORPH_OPEN)
         #ll_seg_mask = connect_lane(ll_seg_mask)
-
+        #maskshape此处恢复
         img_det = show_seg_result(img_det, (da_seg_mask, ll_seg_mask), _, _, is_demo=True)
 
         if len(det):
@@ -175,5 +176,5 @@ if __name__ == '__main__':
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--update', action='store_true', help='update all models')
     opt = parser.parse_args()
-    with torch.no_grad():
+    with torch.no_grad():#不考虑后续程序的梯度？
         detect(cfg,opt)

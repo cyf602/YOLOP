@@ -174,22 +174,24 @@ class Detect(nn.Module):
     stride = None  # strides computed during build
 
     def __init__(self, nc=13, anchors=(), ch=()):  # detection layer
-        super(Detect, self).__init__()
-        self.nc = nc  # number of classes
-        self.no = nc + 5  # number of outputs per anchor 85
+        super(Detect, self).__init__()#执行父类方法
+        self.nc = nc  # number of classes 1?
+        self.no = nc + 5  # number of outputs per anchor 85 6?
         self.nl = len(anchors)  # number of detection layers 3
         self.na = len(anchors[0]) // 2  # number of anchors 3
         self.grid = [torch.zeros(1)] * self.nl  # init grid 
         a = torch.tensor(anchors).float().view(self.nl, -1, 2)
-        self.register_buffer('anchors', a)  # shape(nl,na,2)
+        self.register_buffer('anchors', a)  # shape(nl,na,2) 通过register_buffer()登记过的张量：会自动成为模型中的参数，随着模型移动（gpu/cpu）而移动，但是不会随着梯度进行更新
         self.register_buffer('anchor_grid', a.clone().view(self.nl, 1, -1, 1, 1, 2))  # shape(nl,1,na,1,1,2)
-        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv  
+        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv 3个，output18维，in 128/256/512 
+        # print(self.nc,self.no,self.nl,self.na)
+        # print(self.grid,"\n",self.anchor_grid)
 
     def forward(self, x):
         z = []  # inference output
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
-            # print(str(i)+str(x[i].shape))
+            # print(str(i)+str(x[i].shape)) #bs,18,16*16/8*8/4*4
             bs, _, ny, nx = x[i].shape  # x(bs,255,w,w) to x(bs,3,w,w,85)
             x[i]=x[i].view(bs, self.na, self.no, ny*nx).permute(0, 1, 3, 2).view(bs, self.na, ny, nx, self.no).contiguous()
             # x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
@@ -208,6 +210,8 @@ class Detect(nn.Module):
                 print(y.shape)  #[1, 3, w, h, 85]
                 print(y.view(bs, -1, self.no).shape) #[1, 3*w*h, 85]"""
                 z.append(y.view(bs, -1, self.no))
+            # print("x",len(x),x[0].shape,x[1].shape)
+            # print("z",type(z),len(z))
         return x if self.training else (torch.cat(z, 1), x)
 
     @staticmethod

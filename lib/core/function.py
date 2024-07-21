@@ -48,7 +48,7 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
     # switch to train mode
     model.train()
     start = time.time()
-    for i, (input, target, paths, shapes) in enumerate(train_loader):
+    for i, (input, target, paths, shapes) in tqdm(enumerate(train_loader), total=len(train_loader)):
         intermediate = time.time()
         #print('tims:{}'.format(intermediate-start))
         num_iter = i + num_batch * (epoch - 1)

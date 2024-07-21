@@ -116,8 +116,8 @@ def infer_yolop(weight="yolop-640-640.onnx",
 
     da_seg_mask = np.argmax(da_seg_out, axis=1)[0]  # (?,?) (0|1)
     ll_seg_mask = np.argmax(ll_seg_out, axis=1)[0]  # (?,?) (0|1)
-    print(da_seg_mask.shape)
-    print(ll_seg_mask.shape)
+    # print(da_seg_mask.shape)
+    # print(ll_seg_mask.shape)
 
     color_area = np.zeros((new_unpad_h, new_unpad_w, 3), dtype=np.uint8)
     color_area[da_seg_mask == 1] = [0, 255, 0]
