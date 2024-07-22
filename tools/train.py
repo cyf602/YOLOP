@@ -249,7 +249,7 @@ def main():
 
     # assign model params
     model.gr = 1.0
-    model.nc = 1
+    model.nc = 13#
     # print('bulid model finished')
 
     print("begin to load data")
@@ -309,12 +309,13 @@ def main():
             logger.info("anchors loaded successfully")
             det = model.module.model[model.module.detector_index] if is_parallel(model) \
                 else model.model[model.detector_index]
-            logger.info(str(det.anchors))
+            logger.info("anchors:"+str(det.anchors))
 
     # training
     num_warmup = max(round(cfg.TRAIN.WARMUP_EPOCHS * num_batch), 1000)
     scaler = amp.GradScaler(enabled=device.type != 'cpu')
     print('=> start training...')
+    minloss=float('inf')
     for epoch in range(begin_epoch+1, cfg.TRAIN.END_EPOCH+1):
         if rank != -1:
             train_loader.sampler.set_epoch(epoch)
@@ -352,29 +353,43 @@ def main():
             #     best_model = False
 
         # save checkpoint model and best model
-        if rank in [-1, 0]:
-            savepath = os.path.join(final_output_dir, f'epoch-{epoch}.pth')
-            logger.info('=> saving checkpoint to {}'.format(savepath))
-            save_checkpoint(
-                epoch=epoch,
-                name=cfg.MODEL.NAME,
-                model=model,
-                # 'best_state_dict': model.module.state_dict(),
-                # 'perf': perf_indicator,
-                optimizer=optimizer,
-                output_dir=final_output_dir,
-                filename=f'epoch-{epoch}.pth'
-            )
-            save_checkpoint(
-                epoch=epoch,
-                name=cfg.MODEL.NAME,
-                model=model,
-                # 'best_state_dict': model.module.state_dict(),
-                # 'perf': perf_indicator,
-                optimizer=optimizer,
-                output_dir=os.path.join(cfg.LOG_DIR, cfg.DATASET.DATASET),
-                filename='checkpoint.pth'
-            )
+            if rank in [-1, 0] and total_loss<minloss:
+                savepath = os.path.join(final_output_dir, f'best-epoch-{epoch}.pth')
+                logger.info('=> saving best checkpoint to {}'.format(savepath))
+                save_checkpoint(
+                    epoch=epoch,
+                    name=cfg.MODEL.NAME,
+                    model=model,
+                    # 'best_state_dict': model.module.state_dict(),
+                    # 'perf': perf_indicator,
+                    optimizer=optimizer,
+                    output_dir=final_output_dir,
+                    filename=f'best.pth'
+                )
+                minloss=total_loss
+            elif rank in [-1, 0] and epoch%20==0:
+                savepath = os.path.join(final_output_dir, f'epoch-{epoch}.pth')
+                logger.info('=> saving checkpoint to {}'.format(savepath))
+                save_checkpoint(
+                    epoch=epoch,
+                    name=cfg.MODEL.NAME,
+                    model=model,
+                    # 'best_state_dict': model.module.state_dict(),
+                    # 'perf': perf_indicator,
+                    optimizer=optimizer,
+                    output_dir=final_output_dir,
+                    filename=f'epoch-{epoch}.pth'
+                )
+                # save_checkpoint(
+                #     epoch=epoch,
+                #     name=cfg.MODEL.NAME,
+                #     model=model,
+                #     # 'best_state_dict': model.module.state_dict(),
+                #     # 'perf': perf_indicator,
+                #     optimizer=optimizer,
+                #     output_dir=os.path.join(cfg.LOG_DIR, cfg.DATASET.DATASET),
+                #     filename='checkpoint.pth'
+                # )
 
     # save final model
     if rank in [-1, 0]:

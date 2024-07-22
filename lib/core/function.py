@@ -17,7 +17,7 @@ import math
 from torch.cuda import amp
 from tqdm import tqdm
 
-
+NC=13
 def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_batch, num_warmup,
           writer_dict, logger, device, rank=-1):
     """
@@ -48,7 +48,7 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
     # switch to train mode
     model.train()
     start = time.time()
-    for i, (input, target, paths, shapes) in tqdm(enumerate(train_loader), total=len(train_loader)):
+    for i, (input, target, paths, shapes) in tqdm(enumerate(train_loader), total=len(train_loader)):#target[22,6],[B,2,384,640]*2
         intermediate = time.time()
         #print('tims:{}'.format(intermediate-start))
         num_iter = i + num_batch * (epoch - 1)
@@ -94,7 +94,7 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
             # measure elapsed time
             batch_time.update(time.time() - start)
             end = time.time()
-            if i % cfg.PRINT_FREQ == 0:
+            if i % cfg.PRINT_FREQ == 0 and i!=0:
                 msg = 'Epoch: [{0}][{1}/{2}]\t' \
                       'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
                       'Speed {speed:.1f} samples/s\t' \
@@ -146,7 +146,7 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
     save_hybrid=False
     log_imgs,wandb = min(16,100), None
 
-    nc = 1
+    nc = NC
     iouv = torch.linspace(0.5,0.95,10).to(device)     #iou vector for mAP@0.5:0.95
     niou = iouv.numel()
 

@@ -80,7 +80,7 @@ class MultiHeadLoss(nn.Module):
         balance = [4.0, 1.0, 0.4] if no == 3 else [4.0, 1.0, 0.4, 0.1]  # P3-5 or P3-6
 
         # calculate detection loss
-        for i, pi in enumerate(predictions[0]):  # layer index, layer predictions
+        for i, pi in enumerate(predictions[0]):  # layer index, layer predictions 有多个不同尺度的输出头
             b, a, gj, gi = indices[i]  # image, anchor, gridy, gridx
             tobj = torch.zeros_like(pi[..., 0], device=device)  # target obj
 
@@ -96,7 +96,7 @@ class MultiHeadLoss(nn.Module):
                 iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
                 lbox += (1.0 - iou).mean()  # iou loss
 
-                # Objectness
+                # Objectness batch,anchor h,w
                 tobj[b, a, gj, gi] = (1.0 - model.gr) + model.gr * iou.detach().clamp(0).type(tobj.dtype)  # iou ratio
 
                 # Classification
@@ -106,7 +106,7 @@ class MultiHeadLoss(nn.Module):
                     t[range(n), tcls[i]] = cp
                     lcls += BCEcls(ps[:, 5:], t)  # BCE
             lobj += BCEobj(pi[..., 4], tobj) * balance[i]  # obj loss
-
+#nn.BCEWithLogitsLoss在计算损失时，首先会对模型的输出应用sigmoid激活函数，然后再计算BCE损失
         drive_area_seg_predicts = predictions[1].view(-1)
         drive_area_seg_targets = targets[1].view(-1)
         lseg_da = BCEseg(drive_area_seg_predicts, drive_area_seg_targets)

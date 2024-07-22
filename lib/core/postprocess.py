@@ -28,8 +28,8 @@ def build_targets(cfg, predictions, targets, model):
     na, nt = det.na, targets.shape[0]  # number of anchors, targets
     tcls, tbox, indices, anch = [], [], [], []
     gain = torch.ones(7, device=targets.device)  # normalized to gridspace gain
-    ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
-    targets = torch.cat((targets.repeat(na, 1, 1), ai[:, :, None]), 2)  # append anchor indices
+    ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)  #[na(3),nt] 0,1,2 same as .repeat_interleave(nt)
+    targets = torch.cat((targets.repeat(na, 1, 1), ai[:, :, None]), 2)  # [3,nt,7]append anchor indices
     
     g = 0.5  # bias
     off = torch.tensor([[0, 0],
@@ -42,11 +42,11 @@ def build_targets(cfg, predictions, targets, model):
         gain[2:6] = torch.tensor(predictions[i].shape)[[3, 2, 3, 2]]  # xyxy gain
         # Match targets to anchors
         t = targets * gain
-
+#https://blog.csdn.net/Yong_Qi2015/article/details/123437019
         if nt:
             # Matches
             r = t[:, :, 4:6] / anchors[:, None]  # wh ratio
-            j = torch.max(r, 1. / r).max(2)[0] < cfg.TRAIN.ANCHOR_THRESHOLD  # compare
+            j = torch.max(r, 1. / r).max(2)[0] < cfg.TRAIN.ANCHOR_THRESHOLD  # compare 高宽比不合适视为背景
             # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n)=wh_iou(anchors(3,2), gwh(n,2))
             t = t[j]  # filter
 
